@@ -5,6 +5,8 @@ prompt=${1:-"只回复 OK"}
 max_attempts=${MAX_ATTEMPTS:-120}
 initial_delay=${INITIAL_DELAY:-1}
 max_delay=${MAX_DELAY:-15}
+beep_on_success=${BEEP_ON_SUCCESS:-0}
+success_sound=${SUCCESS_SOUND:-Glass}
 
 if ! command -v codex >/dev/null 2>&1; then
   echo "codex command not found in PATH" >&2
@@ -15,6 +17,29 @@ if ! command -v jq >/dev/null 2>&1; then
   echo "jq command not found in PATH" >&2
   exit 127
 fi
+
+play_success_sound() {
+  if [[ "$beep_on_success" != "1" ]]; then
+    return
+  fi
+
+  if [[ "$(uname -s)" != "Darwin" ]]; then
+    return
+  fi
+
+  if ! command -v afplay >/dev/null 2>&1; then
+    return
+  fi
+
+  sound_path=$success_sound
+  if [[ "$sound_path" != /* ]]; then
+    sound_path="/System/Library/Sounds/${success_sound}.aiff"
+  fi
+
+  if [[ -f "$sound_path" ]]; then
+    afplay "$sound_path" >/dev/null 2>&1 &
+  fi
+}
 
 attempt=1
 delay=$initial_delay
@@ -51,6 +76,7 @@ while (( attempt <= max_attempts )); do
   trimmed_reply=$(printf '%s' "$reply" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
 
   if [[ "$trimmed_reply" == "OK" ]]; then
+    play_success_sound
     printf 'Succeeded on attempt %d.\n' "$attempt" >&2
     exit 0
   fi

@@ -93,8 +93,51 @@ MAX_ATTEMPTS=300 INITIAL_DELAY=1 MAX_DELAY=5 ./codex-retry-ok.sh
 | `MAX_ATTEMPTS` | `120` | 最大尝试次数 |
 | `INITIAL_DELAY` | `1` | 第一次失败后的基础等待秒数 |
 | `MAX_DELAY` | `15` | 退避等待的最大秒数 |
+| `BEEP_ON_SUCCESS` | `0` | 成功收到 `OK` 后是否播放 macOS 提示音，`1` 表示开启 |
+| `SUCCESS_SOUND` | `Glass` | 成功提示音名称或完整声音文件路径 |
 
 脚本在失败后会进行指数退避，并额外加入少量随机抖动，避免所有请求以完全固定的间隔重试。
+
+## 成功提示音
+
+默认不会播放提示音。如果希望成功收到 `OK` 时播放 macOS 系统提示音：
+
+```bash
+BEEP_ON_SUCCESS=1 ./codex-retry-ok.sh
+```
+
+指定其他系统声音：
+
+```bash
+BEEP_ON_SUCCESS=1 SUCCESS_SOUND=Ping ./codex-retry-ok.sh
+```
+
+也可以指定完整声音文件路径：
+
+```bash
+BEEP_ON_SUCCESS=1 SUCCESS_SOUND=/System/Library/Sounds/Hero.aiff ./codex-retry-ok.sh
+```
+
+macOS 常见系统声音包括：
+
+```text
+Basso
+Blow
+Bottle
+Frog
+Funk
+Glass
+Hero
+Morse
+Ping
+Pop
+Purr
+Sosumi
+Submarine
+Tink
+```
+
+提示音功能只在 macOS 上通过 `afplay` 调用。其他系统会自动跳过，不影响脚本主流程。
 
 ## 输出行为
 
@@ -124,6 +167,7 @@ Sleeping 3s before retry.
 
 - 脚本不会写入日志文件。
 - 脚本不会修改你的 Codex 配置。
+- 脚本默认不会调用系统提示音；只有设置 `BEEP_ON_SUCCESS=1` 时才会在成功后播放。
 - 脚本使用当前终端环境中的 Codex CLI 配置、登录状态、自定义 provider、自定义 base URL 等设置。
 - 如果当前目录不是 Git 仓库，脚本中的 `--skip-git-repo-check` 会跳过 Codex 的 Git 仓库检查。
 - 如果你希望保存输出，可以在运行时自己使用 `tee`：
