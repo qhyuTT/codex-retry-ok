@@ -5,7 +5,7 @@ prompt=${1:-"只回复 OK"}
 max_attempts=${MAX_ATTEMPTS:-120}
 initial_delay=${INITIAL_DELAY:-1}
 max_delay=${MAX_DELAY:-15}
-beep_on_success=${BEEP_ON_SUCCESS:-0}
+beep_on_success=${BEEP_ON_SUCCESS:-1}
 success_sound=${SUCCESS_SOUND:-Glass}
 
 if ! command -v codex >/dev/null 2>&1; then
