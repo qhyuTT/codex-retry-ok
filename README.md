@@ -118,6 +118,12 @@ BEEP_ON_SUCCESS=1 SUCCESS_SOUND=Ping ./codex-retry-ok.sh
 BEEP_ON_SUCCESS=1 SUCCESS_SOUND=/System/Library/Sounds/Hero.aiff ./codex-retry-ok.sh
 ```
 
+只测试提示音，不执行 Codex：
+
+```bash
+SUCCESS_SOUND=Ping ./codex-retry-ok.sh --test-sound
+```
+
 macOS 常见系统声音包括：
 
 ```text
@@ -137,7 +143,7 @@ Submarine
 Tink
 ```
 
-提示音功能只在 macOS 上通过 `afplay` 调用。其他系统会自动跳过，不影响脚本主流程。
+提示音功能只在 macOS 上调用。脚本会优先用 `afplay` 前台播放系统声音文件；如果声音文件不可用，会尝试用 `osascript -e 'beep 3'` 兜底。其他系统会自动跳过，不影响脚本主流程。
 
 ## 输出行为
 

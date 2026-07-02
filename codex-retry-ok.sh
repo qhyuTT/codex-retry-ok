@@ -27,19 +27,26 @@ play_success_sound() {
     return
   fi
 
-  if ! command -v afplay >/dev/null 2>&1; then
-    return
-  fi
-
   sound_path=$success_sound
   if [[ "$sound_path" != /* ]]; then
     sound_path="/System/Library/Sounds/${success_sound}.aiff"
   fi
 
-  if [[ -f "$sound_path" ]]; then
-    afplay "$sound_path" >/dev/null 2>&1 &
+  if command -v afplay >/dev/null 2>&1 && [[ -f "$sound_path" ]]; then
+    afplay "$sound_path" >/dev/null 2>&1
+    return
+  fi
+
+  if command -v osascript >/dev/null 2>&1; then
+    osascript -e 'beep 3' >/dev/null 2>&1
   fi
 }
+
+if [[ "${1:-}" == "--test-sound" ]]; then
+  beep_on_success=1
+  play_success_sound
+  exit 0
+fi
 
 attempt=1
 delay=$initial_delay
