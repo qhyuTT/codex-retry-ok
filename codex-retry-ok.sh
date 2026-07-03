@@ -3,8 +3,6 @@ set -u
 
 prompt=${1:-"只回复 OK"}
 max_attempts=${MAX_ATTEMPTS:-120}
-initial_delay=${INITIAL_DELAY:-1}
-max_delay=${MAX_DELAY:-15}
 beep_on_success=${BEEP_ON_SUCCESS:-1}
 success_sound=${SUCCESS_SOUND:-Glass}
 
@@ -49,7 +47,6 @@ if [[ "${1:-}" == "--test-sound" ]]; then
 fi
 
 attempt=1
-delay=$initial_delay
 
 while (( attempt <= max_attempts )); do
   printf '[%s] attempt %d/%d\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$attempt" "$max_attempts" >&2
@@ -104,16 +101,9 @@ while (( attempt <= max_attempts )); do
     exit 1
   fi
 
-  jitter=$(( RANDOM % 5 ))
-  sleep_for=$(( delay + jitter ))
   printf 'Non-OK result, exit=%d: %s\n' "$status" "$reason" >&2
-  printf 'Sleeping %ds before retry.\n' "$sleep_for" >&2
-  sleep "$sleep_for"
-
-  delay=$(( delay * 2 ))
-  if (( delay > max_delay )); then
-    delay=$max_delay
-  fi
+  printf 'Sleeping 1s before next attempt.\n' >&2
+  sleep 1
 
   attempt=$(( attempt + 1 ))
 done

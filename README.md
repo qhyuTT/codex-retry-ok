@@ -89,7 +89,7 @@ BEEP_ON_SUCCESS=0 ./codex-retry-ok.sh
 可以通过环境变量调整重试行为：
 
 ```bash
-MAX_ATTEMPTS=300 INITIAL_DELAY=1 MAX_DELAY=5 ./codex-retry-ok.sh
+MAX_ATTEMPTS=300 ./codex-retry-ok.sh
 ```
 
 参数说明：
@@ -97,12 +97,10 @@ MAX_ATTEMPTS=300 INITIAL_DELAY=1 MAX_DELAY=5 ./codex-retry-ok.sh
 | 参数 | 默认值 | 说明 |
 | --- | ---: | --- |
 | `MAX_ATTEMPTS` | `120` | 最大尝试次数 |
-| `INITIAL_DELAY` | `1` | 第一次失败后的基础等待秒数 |
-| `MAX_DELAY` | `15` | 退避等待的最大秒数 |
 | `BEEP_ON_SUCCESS` | `1` | 成功收到 `OK` 后是否播放 macOS 提示音，`0` 表示关闭 |
 | `SUCCESS_SOUND` | `Glass` | 成功提示音名称或完整声音文件路径 |
 
-脚本在失败后会进行指数退避，并额外加入少量随机抖动，避免所有请求以完全固定的间隔重试。
+脚本在失败后固定等待 1 秒，然后直接进入下一次尝试。
 
 ## 成功提示音
 
@@ -178,7 +176,7 @@ Tink
 
 ```text
 Non-OK result, exit=0: no parseable agent OK response
-Sleeping 3s before retry.
+Sleeping 1s before next attempt.
 ```
 
 ## 退出码
