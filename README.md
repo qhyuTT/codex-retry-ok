@@ -1,146 +1,153 @@
 # codex-retry-ok
 
-`codex-retry-ok` 是一个简单的 Shell 脚本，用来重复执行一次最小化的
-`codex exec` 请求，直到 Codex 最终回复严格等于 `OK`，或者达到最大重试次数。
+English | [中文](README.zh-CN.md)
 
-脚本默认执行的命令等价于：
+`codex-retry-ok` is a small Bash script that runs minimal `codex exec` requests concurrently until any final Codex agent message is exactly `OK`, or until the global attempt limit is reached.
+
+By default, it starts 3 workers and runs commands equivalent to:
 
 ```bash
 codex exec --skip-git-repo-check --json --ephemeral "只回复 OK"
 ```
 
-它会实时打印 `codex exec --json` 输出的 JSONL 内容，不会保存日志文件，也不会创建日志目录。
+It streams the JSONL output from `codex exec --json` to the terminal. It does not save log files or create log directories.
 
-## 适用场景
+## Use Cases
 
-- 想快速确认当前 Codex CLI 登录状态、模型配置和自定义 URL 是否可用。
-- 遇到临时高峰、短暂失败或非预期回复时，希望自动重试。
-- 需要在终端里实时观察 Codex JSONL 事件流，而不是事后查看日志。
+- Quickly check whether the current Codex CLI login, model config, and custom URL are working.
+- Retry automatically during temporary load, transient failures, or unexpected responses.
+- Use small concurrency to get a successful response faster.
+- Watch the Codex JSONL event stream live in the terminal.
 
-## 依赖
+## Requirements
 
-运行前需要确保本机已经安装并配置好：
+Make sure these commands are installed and configured:
 
 - `codex`
 - `jq`
 - `bash`
 
-同时需要你已经可以正常运行 Codex CLI。例如：
+You should already be able to run Codex CLI directly, for example:
 
 ```bash
 codex exec --skip-git-repo-check --json --ephemeral "只回复 OK"
 ```
 
-如果你的 Codex CLI 已经登录，脚本会直接使用当前 Codex 配置和登录缓存，不需要在脚本里额外写 API key。
+The script uses your current Codex CLI configuration and login cache. It does not set an API key.
 
-## 安装
+## Install
 
-克隆仓库：
+Clone the repository:
 
 ```bash
 git clone https://github.com/qhyuTT/codex-retry-ok.git
 cd codex-retry-ok
 ```
 
-确认脚本有执行权限：
+Make the script executable:
 
 ```bash
 chmod +x codex-retry-ok.sh
 ```
 
-## 基本使用
+## Usage
 
-直接运行。默认情况下，成功收到 `OK` 后会播放 macOS 提示音：
+Run it directly. By default, it starts 3 workers and plays a macOS success sound after receiving `OK`:
 
 ```bash
 ./codex-retry-ok.sh
 ```
 
-默认 prompt 是：
+The default prompt is:
 
 ```text
 只回复 OK
 ```
 
-如果 Codex 的最终 agent message 是 `OK`，脚本会退出并返回成功：
+If any Codex final agent message is exactly `OK`, the script stops the other workers and exits successfully:
 
 ```text
-Succeeded on attempt 1.
+Succeeded on attempt 1 by worker 1.
 ```
 
-如果不需要提示音：
+Disable the success sound:
 
 ```bash
 BEEP_ON_SUCCESS=0 ./codex-retry-ok.sh
 ```
 
-## 自定义 prompt
+## Custom Prompt
 
-你也可以传入自己的 prompt：
+Pass a custom prompt as the first argument:
 
 ```bash
 ./codex-retry-ok.sh "只回复 OK"
 ```
 
-脚本的成功判断仍然是：最后一条 `agent_message` 去掉首尾空白后，必须严格等于 `OK`。
+The success condition is unchanged: the last `agent_message` text, after trimming surrounding whitespace, must be exactly `OK`.
 
-## 重试参数
+## Retry Options
 
-可以通过环境变量调整重试行为：
+Adjust retry behavior with environment variables:
 
 ```bash
 MAX_ATTEMPTS=300 ./codex-retry-ok.sh
 ```
 
-参数说明：
-
-| 参数 | 默认值 | 说明 |
+| Variable | Default | Description |
 | --- | ---: | --- |
-| `MAX_ATTEMPTS` | `120` | 最大尝试次数 |
-| `BEEP_ON_SUCCESS` | `1` | 成功收到 `OK` 后是否播放 macOS 提示音，`0` 表示关闭 |
-| `SUCCESS_SOUND` | `Glass` | 成功提示音名称或完整声音文件路径 |
+| `MAX_ATTEMPTS` | `120` | Global maximum attempt count, not per-worker |
+| `CONCURRENCY` | `3` | Number of concurrent workers |
+| `BEEP_ON_SUCCESS` | `1` | Whether to play a macOS success sound after receiving `OK`; use `0` to disable |
+| `SUCCESS_SOUND` | `Glass` | macOS sound name or full sound file path |
 
-脚本在失败后固定等待 1 秒，然后直接进入下一次尝试。
+To force serial retry behavior:
 
-## 成功提示音
+```bash
+CONCURRENCY=1 ./codex-retry-ok.sh
+```
 
-默认会在成功收到 `OK` 时播放 macOS 系统提示音：
+Workers share the script's internal attempt counter, success flag, and last failure summary. After a failed attempt, a worker waits 1 second before claiming the next global attempt.
+
+## Success Sound
+
+The default success sound uses a macOS system sound:
 
 ```bash
 ./codex-retry-ok.sh
 ```
 
-显式开启提示音：
+Enable it explicitly:
 
 ```bash
 BEEP_ON_SUCCESS=1 ./codex-retry-ok.sh
 ```
 
-关闭提示音：
+Disable it:
 
 ```bash
 BEEP_ON_SUCCESS=0 ./codex-retry-ok.sh
 ```
 
-指定其他系统声音：
+Choose another system sound:
 
 ```bash
 BEEP_ON_SUCCESS=1 SUCCESS_SOUND=Ping ./codex-retry-ok.sh
 ```
 
-也可以指定完整声音文件路径：
+Use a full sound file path:
 
 ```bash
 BEEP_ON_SUCCESS=1 SUCCESS_SOUND=/System/Library/Sounds/Hero.aiff ./codex-retry-ok.sh
 ```
 
-只测试提示音，不执行 Codex：
+Test the sound without running Codex:
 
 ```bash
 SUCCESS_SOUND=Ping ./codex-retry-ok.sh --test-sound
 ```
 
-macOS 常见系统声音包括：
+Common macOS system sounds include:
 
 ```text
 Basso
@@ -159,11 +166,11 @@ Submarine
 Tink
 ```
 
-提示音功能只在 macOS 上调用。脚本会优先用 `afplay` 前台播放系统声音文件；如果声音文件不可用，会尝试用 `osascript -e 'beep 3'` 兜底。其他系统会自动跳过，不影响脚本主流程。
+Sound playback only runs on macOS. The script first tries `afplay` with a system sound file. If that is unavailable, it falls back to `osascript -e 'beep 3'`. Other systems skip the sound step without affecting the main flow.
 
-## 输出行为
+## Output
 
-脚本会把 `codex exec --json` 的输出实时打印到终端。例如：
+The script streams `codex exec --json` output to the terminal, for example:
 
 ```jsonl
 {"type":"thread.started","thread_id":"..."}
@@ -172,49 +179,54 @@ Tink
 {"type":"turn.completed","usage":{"input_tokens":7028,"cached_input_tokens":0,"output_tokens":17,"reasoning_output_tokens":10}}
 ```
 
-如果本次结果不是 `OK`，脚本会打印重试原因和下一次等待时间：
+In concurrent mode, JSONL lines from different workers may be interleaved, but each line is printed atomically.
+
+If an attempt does not return `OK`, the script prints the worker, attempt, exit code, and reason:
 
 ```text
-Non-OK result, exit=0: no parseable agent OK response
-Sleeping 1s before next attempt.
+Worker 2 non-OK result on attempt 2, exit=0: no parseable agent OK response
 ```
 
-## 退出码
+## Exit Codes
 
-- `0`：成功拿到最终回复 `OK`。
-- `1`：达到最大重试次数后仍未拿到 `OK`。
-- `127`：缺少 `codex` 或 `jq` 命令。
+- `0`: received final response `OK`.
+- `1`: reached `MAX_ATTEMPTS` without receiving `OK`.
+- `2`: `MAX_ATTEMPTS` or `CONCURRENCY` is not a positive integer.
+- `127`: missing `codex` or `jq`.
 
-## 注意事项
+## Notes
 
-- 脚本不会写入日志文件。
-- 脚本不会修改你的 Codex 配置。
-- 脚本默认会在成功收到 `OK` 后播放系统提示音；设置 `BEEP_ON_SUCCESS=0` 可以关闭。
-- 脚本使用当前终端环境中的 Codex CLI 配置、登录状态、自定义 provider、自定义 base URL 等设置。
-- 如果当前目录不是 Git 仓库，脚本中的 `--skip-git-repo-check` 会跳过 Codex 的 Git 仓库检查。
-- 如果你希望保存输出，可以在运行时自己使用 `tee`：
+- The script does not write log files.
+- The script does not modify your Codex configuration.
+- The default concurrency is 3. Higher concurrency can reduce wall-clock time, but also increases request volume and rate-limit risk.
+- The script uses the Codex CLI configuration, login state, custom provider, and custom base URL from the current terminal environment.
+- `--skip-git-repo-check` lets Codex run even when the current directory is not a Git repository.
+- Each Codex call still uses `--ephemeral`; the shared state is script-level scheduling state, not a shared Codex session.
+- To save output yourself, use `tee`:
 
 ```bash
 ./codex-retry-ok.sh | tee output.jsonl
 ```
 
-## 常见问题
+## FAQ
 
-### 为什么一直重试？
+### Why does it keep retrying?
 
-因为脚本只把最终 agent message 严格等于 `OK` 视为成功。以下情况都会继续重试：
+The script only treats a final agent message exactly equal to `OK` as success. It keeps retrying when:
 
-- Codex 返回了临时高峰提示。
-- Codex 命令退出失败。
-- 输出中没有可解析的 `agent_message`。
-- 回复是 `OK` 以外的文本。
+- Codex returns a temporary load or failure message.
+- The Codex command exits with an error.
+- The output has no parseable `agent_message`.
+- The response is anything other than `OK`.
 
-### 为什么要安装 jq？
+### Do concurrent workers share one Codex session?
 
-脚本用 `jq` 解析 `codex exec --json` 输出的 JSONL 事件，并从中提取最后一条
-`agent_message.text` 来判断是否成功。
+No. Workers only share internal scheduling state: the global attempt counter, success flag, and last failure summary. Each request remains an independent `codex exec --ephemeral` call, avoiding races or context contamination from concurrent writes to the same session.
 
-### 会不会使用 API key？
+### Why is `jq` required?
 
-脚本本身不设置 API key。它只调用本机的 `codex exec`，因此认证方式取决于你当前
-Codex CLI 的配置和登录状态。
+The script uses `jq` to parse JSONL events from `codex exec --json` and extract the last `agent_message.text` for success detection.
+
+### Does it use an API key?
+
+The script does not set an API key. It only calls your local `codex exec`, so authentication depends on your current Codex CLI configuration and login state.
