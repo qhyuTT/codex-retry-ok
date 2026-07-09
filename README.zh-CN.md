@@ -100,6 +100,9 @@ MAX_ATTEMPTS=300 ./codex-retry-ok.sh
 | `CONCURRENCY` | `3` | 并发 worker 数量 |
 | `BEEP_ON_SUCCESS` | `1` | 成功收到 `OK` 后是否播放 macOS 提示音，`0` 表示关闭 |
 | `SUCCESS_SOUND` | `Glass` | 成功提示音名称或完整声音文件路径 |
+| `ABORT_ON_RECONNECT` | `1` | 遇到 `Reconnecting... N/5` 事件时是否提前终止当前 attempt，`0` 表示等待 Codex 自己结束 |
+| `ABORT_RECONNECT_AT` | `1` | 第几次 reconnect 开始提前终止，默认第 1 次 |
+| `RECONNECT_ABORT_SLEEP` | `1` | 提前终止 reconnect attempt 后，worker 下一次尝试前等待的秒数 |
 
 如果只想串行重试，可以把并发数设为 1：
 
@@ -108,6 +111,22 @@ CONCURRENCY=1 ./codex-retry-ok.sh
 ```
 
 脚本会在 worker 之间共享尝试计数、成功标志和最后失败摘要。某个 worker 失败后会等待 1 秒，再领取下一次全局 attempt。
+
+默认情况下，如果 `codex exec --json` 报告高峰重连——无论是结构化的 error 事件，还是 stderr 上的纯文本行——例如：
+
+```jsonl
+{"type":"error","message":"Reconnecting... 1/5 (We're currently experiencing high demand, which may cause temporary errors.)"}
+```
+
+```text
+Stream disconnected. Reconnecting... 1/5
+```
+
+脚本会提前终止当前 attempt，让对应 worker 等待 `RECONNECT_ABORT_SLEEP` 秒后领取下一次 attempt。这样可以避免 worker 被 Codex 内置的完整 reconnect 流程长时间占住。如果你想保留 Codex 原本的完整重连行为：
+
+```bash
+ABORT_ON_RECONNECT=0 ./codex-retry-ok.sh
+```
 
 ## 成功提示音
 
@@ -216,6 +235,7 @@ Worker 2 non-OK result on attempt 2, exit=0: no parseable agent OK response
 因为脚本只把最终 agent message 严格等于 `OK` 视为成功。以下情况都会继续重试：
 
 - Codex 返回了临时高峰提示。
+- Codex 输出了 `Reconnecting... N/5`，且默认提前终止了当前 attempt。
 - Codex 命令退出失败。
 - 输出中没有可解析的 `agent_message`。
 - 回复是 `OK` 以外的文本。
