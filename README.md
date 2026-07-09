@@ -100,9 +100,6 @@ MAX_ATTEMPTS=300 ./codex-retry-ok.sh
 | `CONCURRENCY` | `3` | Number of concurrent workers |
 | `BEEP_ON_SUCCESS` | `1` | Whether to play a macOS success sound after receiving `OK`; use `0` to disable |
 | `SUCCESS_SOUND` | `Glass` | macOS sound name or full sound file path |
-| `ABORT_ON_RECONNECT` | `1` | Whether to abort the current attempt when a `Reconnecting... N/5` event appears; use `0` to let Codex finish its own reconnect flow |
-| `ABORT_RECONNECT_AT` | `1` | Reconnect attempt number that triggers the abort; defaults to the first reconnect |
-| `RECONNECT_ABORT_SLEEP` | `1` | Seconds a worker waits before claiming another attempt after aborting a reconnecting attempt |
 
 To force serial retry behavior:
 
@@ -111,23 +108,6 @@ CONCURRENCY=1 ./codex-retry-ok.sh
 ```
 
 Workers share the script's internal attempt counter, success flag, and last failure summary. After a failed attempt, a worker waits 1 second before claiming the next global attempt.
-
-By default, if `codex exec --json` reports a high-demand reconnect, either as a
-structured error event or as a plain-text line on stderr, such as:
-
-```jsonl
-{"type":"error","message":"Reconnecting... 1/5 (We're currently experiencing high demand, which may cause temporary errors.)"}
-```
-
-```text
-Stream disconnected. Reconnecting... 1/5
-```
-
-the script aborts that attempt early, then lets the worker wait `RECONNECT_ABORT_SLEEP` seconds before claiming the next attempt. This avoids tying up a worker while Codex runs through its full internal reconnect sequence. To keep Codex's original reconnect behavior:
-
-```bash
-ABORT_ON_RECONNECT=0 ./codex-retry-ok.sh
-```
 
 ## Success Sound
 
@@ -235,7 +215,6 @@ Worker 2 non-OK result on attempt 2, exit=0: no parseable agent OK response
 The script only treats a final agent message exactly equal to `OK` as success. It keeps retrying when:
 
 - Codex returns a temporary load or failure message.
-- Codex emits `Reconnecting... N/5` and the script aborts the attempt early by default.
 - The Codex command exits with an error.
 - The output has no parseable `agent_message`.
 - The response is anything other than `OK`.

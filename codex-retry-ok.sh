@@ -6,16 +6,9 @@ max_attempts=${MAX_ATTEMPTS:-120}
 concurrency=${CONCURRENCY:-3}
 beep_on_success=${BEEP_ON_SUCCESS:-1}
 success_sound=${SUCCESS_SOUND:-Glass}
-abort_on_reconnect=${ABORT_ON_RECONNECT:-1}
-abort_reconnect_at=${ABORT_RECONNECT_AT:-1}
-reconnect_abort_sleep=${RECONNECT_ABORT_SLEEP:-1}
 
 is_positive_integer() {
   [[ "$1" =~ ^[1-9][0-9]*$ ]]
-}
-
-is_non_negative_number() {
-  [[ "$1" =~ ^[0-9]+([.][0-9]+)?$ ]]
 }
 
 if ! is_positive_integer "$max_attempts"; then
@@ -25,21 +18,6 @@ fi
 
 if ! is_positive_integer "$concurrency"; then
   echo "CONCURRENCY must be a positive integer" >&2
-  exit 2
-fi
-
-if [[ "$abort_on_reconnect" != "0" && "$abort_on_reconnect" != "1" ]]; then
-  echo "ABORT_ON_RECONNECT must be 0 or 1" >&2
-  exit 2
-fi
-
-if ! is_positive_integer "$abort_reconnect_at"; then
-  echo "ABORT_RECONNECT_AT must be a positive integer" >&2
-  exit 2
-fi
-
-if ! is_non_negative_number "$reconnect_abort_sleep"; then
-  echo "RECONNECT_ABORT_SLEEP must be a non-negative number" >&2
   exit 2
 fi
 
@@ -207,11 +185,6 @@ run_attempt() {
   local status=0
   local line
   local text
-  local reconnect_attempt
-  local reconnect_total
-  local abort_reason=""
-  local aborted=0
-  local reconnect_re='Reconnecting\.\.\. ([0-9]+)/([0-9]+)'
   local fifo="$state_dir/worker-$worker_id-attempt-$attempt.fifo"
   local producer_file="$state_dir/producer.$worker_id"
   local codex_file="$state_dir/codex.$worker_id"
@@ -245,21 +218,6 @@ run_attempt() {
   current_codex_file=$codex_file
   printf '%d\n' "$current_producer_pid" > "$producer_file"
 
-  terminate_current_attempt() {
-    local pid
-
-    if [[ -f "$codex_file" ]]; then
-      pid=$(cat "$codex_file" 2>/dev/null || true)
-      if [[ -n "$pid" ]]; then
-        kill "$pid" >/dev/null 2>&1 || true
-      fi
-    fi
-
-    if [[ -n "$current_producer_pid" ]]; then
-      kill "$current_producer_pid" >/dev/null 2>&1 || true
-    fi
-  }
-
   while IFS= read -r line; do
     if [[ "$line" == __CODEX_RETRY_EXIT_STATUS__:* ]]; then
       status=${line#__CODEX_RETRY_EXIT_STATUS__:}
@@ -277,19 +235,6 @@ run_attempt() {
 
     if [[ -n "$text" ]]; then
       reply=$text
-    fi
-
-    if [[ "$abort_on_reconnect" == "1" && "$line" =~ $reconnect_re ]]; then
-      reconnect_attempt=${BASH_REMATCH[1]}
-      reconnect_total=${BASH_REMATCH[2]}
-
-      if (( reconnect_attempt >= abort_reconnect_at )); then
-        aborted=1
-        status=143
-        abort_reason="aborted on reconnect ${reconnect_attempt}/${reconnect_total}"
-        terminate_current_attempt
-        break
-      fi
     fi
   done < "$fifo"
 
@@ -316,24 +261,18 @@ run_attempt() {
       | cut -c 1-240
   )
 
-  if [[ -n "$abort_reason" ]]; then
-    reason=$abort_reason
-  elif [[ -z "$reason" ]]; then
+  if [[ -z "$reason" ]]; then
     reason="no parseable agent OK response"
   fi
 
   record_failure "$worker_id" "$attempt" "$status" "$reason"
   printf 'Worker %d non-OK result on attempt %d, exit=%d: %s\n' "$worker_id" "$attempt" "$status" "$reason" >&2
-  if (( aborted == 1 )); then
-    return 2
-  fi
   return 1
 }
 
 run_worker() {
   local worker_id=$1
   local attempt
-  local attempt_status
   current_producer_pid=""
   current_fifo=""
   current_producer_file=""
@@ -344,18 +283,13 @@ run_worker() {
 
   while [[ ! -f "$state_dir/success" ]]; do
     attempt=$(claim_attempt) || break
-    run_attempt "$worker_id" "$attempt"
-    attempt_status=$?
+    run_attempt "$worker_id" "$attempt" || true
 
     if [[ -f "$state_dir/success" ]]; then
       break
     fi
 
-    if (( attempt_status == 2 )); then
-      sleep "$reconnect_abort_sleep"
-    else
-      sleep 1
-    fi
+    sleep 1
   done
 
   touch "$state_dir/done.$worker_id"
